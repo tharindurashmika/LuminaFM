@@ -1,0 +1,1367 @@
+// =============================================================================
+// LuminaFM CMMS - Multi-Tenant Enterprise Database Schema
+// =============================================================================
+// Generator & Datasource Configuration
+// =============================================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum MembershipStatus {
+  invited
+  active
+  suspended
+
+  @@map("membership_status")
+}
+
+enum CriticalityLevel {
+  low
+  medium
+  high
+  critical
+
+  @@map("criticality_level")
+}
+
+enum SystemStatus {
+  active
+  inactive
+  decommissioned
+
+  @@map("system_status")
+}
+
+enum AssetStatus {
+  in_service
+  out_of_service
+  under_maintenance
+  standby
+  decommissioned
+
+  @@map("asset_status")
+}
+
+enum AttributeDataType {
+  text
+  number
+  boolean
+  date
+  datetime
+  select
+  multi_select
+
+  @@map("attribute_data_type")
+}
+
+enum MeterReadingType {
+  instantaneous
+  cumulative
+  counter
+
+  @@map("meter_reading_type")
+}
+
+enum ReadingSource {
+  manual
+  iot
+  import
+  calculated
+
+  @@map("reading_source")
+}
+
+enum ReadingQualityStatus {
+  valid
+  suspect
+  invalid
+
+  @@map("reading_quality_status")
+}
+
+enum RecurrenceType {
+  calendar
+  meter
+  condition
+  one_time
+
+  @@map("recurrence_type")
+}
+
+enum PriorityLevel {
+  low
+  medium
+  high
+  urgent
+
+  @@map("priority_level")
+}
+
+enum WorkOrderStatus {
+  draft
+  open
+  approved
+  assigned
+  in_progress
+  on_hold
+  completed
+  cancelled
+  closed
+
+  @@map("work_order_status")
+}
+
+enum WorkOrderTaskStatus {
+  pending
+  in_progress
+  completed
+  skipped
+
+  @@map("work_order_task_status")
+}
+
+enum ChecklistResponseType {
+  pass_fail
+  yes_no
+  number
+  text
+  date
+  photo
+  select
+
+  @@map("checklist_response_type")
+}
+
+enum InspectionStatus {
+  draft
+  in_progress
+  completed
+  failed
+  cancelled
+
+  @@map("inspection_status")
+}
+
+enum InspectionOverallResult {
+  pass
+  fail
+  conditional
+  not_applicable
+
+  @@map("inspection_overall_result")
+}
+
+enum InspectionResultStatus {
+  pass
+  fail
+  observation
+  not_applicable
+
+  @@map("inspection_result_status")
+}
+
+enum FaultStatus {
+  open
+  investigating
+  work_order_created
+  resolved
+  closed
+
+  @@map("fault_status")
+}
+
+enum DecisionModelMethod {
+  ANP
+  AHP
+  TOPSIS
+  FUZZY
+  CUSTOM
+
+  @@map("decision_model_method")
+}
+
+enum DecisionModelStatus {
+  draft
+  validated
+  active
+  retired
+
+  @@map("decision_model_status")
+}
+
+enum CriterionType {
+  benefit
+  cost
+  risk
+  custom
+
+  @@map("criterion_type")
+}
+
+// =============================================================================
+// 1. TENANCY, USERS AND ACCESS CONTROL
+// =============================================================================
+
+model Organization {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String   @unique @db.VarChar(50)
+  name         String   @db.VarChar(200)
+  legalName    String?  @map("legal_name") @db.VarChar(250)
+  logoUri      String?  @map("logo_uri") @db.Text
+  timezone     String   @default("Asia/Colombo") @db.VarChar(80)
+  baseCurrency String   @default("LKR") @map("base_currency") @db.Char(3)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  memberships              OrganizationMembership[]
+  roles                    Role[]
+  rolePermissions          RolePermission[]
+  membershipRoles          MembershipRole[]
+  sites                    Site[]
+  locationTypes            LocationType[]
+  locations                Location[]
+  systemCategories         SystemCategory[]
+  systemTypes              SystemType[]
+  systems                  System[]
+  assetCategories          AssetCategory[]
+  brands                   Brand[]
+  assetModels              AssetModel[]
+  assets                   Asset[]
+  attributeDefinitions     AttributeDefinition[]
+  categoryAttributes       CategoryAttribute[]
+  assetAttributeValues     AssetAttributeValue[]
+  unitsOfMeasurement       UnitOfMeasurement[]
+  meterDefinitions         MeterDefinition[]
+  assetMeters              AssetMeter[]
+  meterReadings            MeterReading[]
+  maintenanceTypes         MaintenanceType[]
+  maintenanceTaskTemplates MaintenanceTaskTemplate[]
+  maintenancePlans         MaintenancePlan[]
+  maintenancePlanTasks     MaintenancePlanTask[]
+  assetMaintenancePlans    AssetMaintenancePlan[]
+  workOrders               WorkOrder[]
+  workOrderTasks           WorkOrderTask[]
+  workOrderLabor           WorkOrderLabor[]
+  workOrderParts           WorkOrderPart[]
+  workOrderStatusHistories WorkOrderStatusHistory[]
+  checklistTemplates       ChecklistTemplate[]
+  checklistItems           ChecklistItem[]
+  inspections              Inspection[]
+  inspectionResponses      InspectionResponse[]
+  faultLogs                FaultLog[]
+  decisionModels           DecisionModel[]
+  decisionCriteria         DecisionCriterion[]
+  decisionAlternatives     DecisionAlternative[]
+  decisionRuns             DecisionRun[]
+  attachments              Attachment[]
+  entityAttachments        EntityAttachment[]
+  notifications            Notification[]
+  auditLogs                AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique @db.VarChar(320)
+  fullName        String    @map("full_name") @db.VarChar(200)
+  passwordHash    String?   @map("password_hash") @db.Text
+  phone           String?   @db.VarChar(40)
+  isPlatformAdmin Boolean   @default(false) @map("is_platform_admin")
+  isActive        Boolean   @default(true) @map("is_active")
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  memberships              OrganizationMembership[]
+  updatedAttributeValues   AssetAttributeValue[]    @relation("AttributeValueUpdatedBy")
+  recordedMeterReadings    MeterReading[]           @relation("MeterReadingRecordedBy")
+  requestedWorkOrders      WorkOrder[]              @relation("WorkOrderRequestedBy")
+  assignedWorkOrders       WorkOrder[]              @relation("WorkOrderAssignedTo")
+  approvedWorkOrders       WorkOrder[]              @relation("WorkOrderApprovedBy")
+  completedWorkOrderTasks  WorkOrderTask[]          @relation("WorkOrderTaskCompletedBy")
+  workOrderLaborRecords    WorkOrderLabor[]         @relation("WorkOrderLaborUser")
+  changedWorkOrderStatuses WorkOrderStatusHistory[] @relation("WorkOrderStatusChangedBy")
+  conductedInspections     Inspection[]             @relation("InspectionInspector")
+  submittedResponses       InspectionResponse[]     @relation("InspectionResponseBy")
+  reportedFaults           FaultLog[]               @relation("FaultReportedBy")
+  executedDecisionRuns     DecisionRun[]            @relation("DecisionRunExecutedBy")
+  uploadedAttachments      Attachment[]             @relation("AttachmentUploadedBy")
+  notifications            Notification[]
+  auditLogs                AuditLog[]               @relation("AuditLogUser")
+
+  @@map("users")
+}
+
+model OrganizationMembership {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  employeeCode   String?          @map("employee_code") @db.VarChar(80)
+  jobTitle       String?          @map("job_title") @db.VarChar(150)
+  status         MembershipStatus @default(active)
+  joinedAt       DateTime?        @map("joined_at") @db.Timestamptz(6)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membershipRoles MembershipRole[]
+
+  @@unique([organizationId, userId])
+  @@unique([organizationId, id])
+  @@index([userId], map: "idx_memberships_user")
+  @@map("organization_memberships")
+}
+
+model Role {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  description    String?  @db.Text
+  isSystemRole   Boolean  @default(false) @map("is_system_role")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  membershipRoles MembershipRole[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, id])
+  @@map("roles")
+}
+
+model Permission {
+  id            String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  permissionKey String @unique @map("permission_key") @db.VarChar(120)
+  description   String @db.Text
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  organizationId String @map("organization_id") @db.Uuid
+  roleId         String @map("role_id") @db.Uuid
+  permissionId   String @map("permission_id") @db.Uuid
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission   @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model MembershipRole {
+  organizationId String @map("organization_id") @db.Uuid
+  membershipId   String @map("membership_id") @db.Uuid
+  roleId         String @map("role_id") @db.Uuid
+
+  // Relations
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  membership   OrganizationMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role         Role                   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, membershipId, roleId])
+  @@map("membership_roles")
+}
+
+// =============================================================================
+// 2. ORGANIZATIONAL SITES AND LOCATION HIERARCHY
+// =============================================================================
+
+model Site {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  code           String   @db.VarChar(60)
+  name           String   @db.VarChar(200)
+  siteType       String?  @map("site_type") @db.VarChar(80)
+  addressLine1   String?  @map("address_line1") @db.VarChar(250)
+  addressLine2   String?  @map("address_line2") @db.VarChar(250)
+  city           String?  @db.VarChar(120)
+  region         String?  @db.VarChar(120)
+  country        String   @default("Sri Lanka") @db.VarChar(120)
+  timezone       String?  @db.VarChar(80)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  locations    Location[]
+  systems      System[]
+  assets       Asset[]
+  workOrders   WorkOrder[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("sites")
+}
+
+model LocationType {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  code           String  @db.VarChar(60)
+  name           String  @db.VarChar(120)
+  description    String? @db.Text
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  locations    Location[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("location_types")
+}
+
+model Location {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  siteId           String   @map("site_id") @db.Uuid
+  parentLocationId String?  @map("parent_location_id") @db.Uuid
+  locationTypeId   String   @map("location_type_id") @db.Uuid
+  code             String   @db.VarChar(80)
+  name             String   @db.VarChar(200)
+  description      String?  @db.Text
+  floorLabel       String?  @map("floor_label") @db.VarChar(50)
+  areaSqm          Decimal? @map("area_sqm") @db.Decimal(14, 2)
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  locationType LocationType @relation(fields: [locationTypeId], references: [id], onDelete: Restrict)
+
+  // Self-referencing hierarchical relationship
+  parent   Location?  @relation("LocationHierarchy", fields: [parentLocationId], references: [id], onDelete: Restrict)
+  children Location[] @relation("LocationHierarchy")
+
+  assets      Asset[]
+  workOrders  WorkOrder[]
+  inspections Inspection[]
+
+  @@unique([organizationId, siteId, code])
+  @@unique([organizationId, id])
+  @@unique([organizationId, siteId, id])
+  @@index([organizationId, siteId, parentLocationId], map: "idx_locations_site_parent")
+  @@map("locations")
+}
+
+// =============================================================================
+// 3. TECHNICAL SYSTEM TAXONOMY AND SYSTEM TREE
+// =============================================================================
+
+model SystemCategory {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  code           String  @db.VarChar(60)
+  name           String  @db.VarChar(150)
+  description    String? @db.Text
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  systemTypes  SystemType[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("system_categories")
+}
+
+model SystemType {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String  @map("organization_id") @db.Uuid
+  systemCategoryId String  @map("system_category_id") @db.Uuid
+  code             String  @db.VarChar(60)
+  name             String  @db.VarChar(150)
+  description      String? @db.Text
+
+  // Relations
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  systemCategory SystemCategory  @relation(fields: [systemCategoryId], references: [id], onDelete: Cascade)
+  systems        System[]
+  decisionModels DecisionModel[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("system_types")
+}
+
+model System {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  siteId         String           @map("site_id") @db.Uuid
+  parentSystemId String?          @map("parent_system_id") @db.Uuid
+  systemTypeId   String           @map("system_type_id") @db.Uuid
+  code           String           @db.VarChar(80)
+  name           String           @db.VarChar(200)
+  description    String?          @db.Text
+  criticality    CriticalityLevel @default(medium)
+  status         SystemStatus     @default(active)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site         Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  systemType   SystemType   @relation(fields: [systemTypeId], references: [id], onDelete: Restrict)
+
+  // Self-referencing hierarchical relationship
+  parent   System?  @relation("SystemHierarchy", fields: [parentSystemId], references: [id], onDelete: Restrict)
+  children System[] @relation("SystemHierarchy")
+
+  assets Asset[]
+
+  @@unique([organizationId, siteId, code])
+  @@unique([organizationId, id])
+  @@unique([organizationId, siteId, id])
+  @@index([organizationId, siteId, parentSystemId], map: "idx_systems_site_parent")
+  @@map("systems")
+}
+
+// =============================================================================
+// 4. ASSET MASTER DATA
+// =============================================================================
+
+model AssetCategory {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String  @map("organization_id") @db.Uuid
+  parentCategoryId String? @map("parent_category_id") @db.Uuid
+  code             String  @db.VarChar(60)
+  name             String  @db.VarChar(150)
+  description      String? @db.Text
+  isActive         Boolean @default(true) @map("is_active")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Self-referencing hierarchical relationship
+  parent   AssetCategory?  @relation("AssetCategoryHierarchy", fields: [parentCategoryId], references: [id], onDelete: Restrict)
+  children AssetCategory[] @relation("AssetCategoryHierarchy")
+
+  assetModels              AssetModel[]
+  assets                   Asset[]
+  categoryAttributes       CategoryAttribute[]
+  maintenanceTaskTemplates MaintenanceTaskTemplate[]
+  checklistTemplates       ChecklistTemplate[]
+  decisionModels           DecisionModel[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("asset_categories")
+}
+
+model Brand {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  name           String  @db.VarChar(150)
+  website        String? @db.Text
+  supportContact String? @map("support_contact") @db.Text
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assetModels  AssetModel[]
+  assets       Asset[]
+
+  @@unique([organizationId, name])
+  @@unique([organizationId, id])
+  @@map("brands")
+}
+
+model AssetModel {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String  @map("organization_id") @db.Uuid
+  brandId         String  @map("brand_id") @db.Uuid
+  assetCategoryId String  @map("asset_category_id") @db.Uuid
+  modelNumber     String  @map("model_number") @db.VarChar(120)
+  modelName       String? @map("model_name") @db.VarChar(180)
+  specifications  Json    @default("{}") @db.JsonB
+
+  // Relations
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brand         Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  assetCategory AssetCategory @relation(fields: [assetCategoryId], references: [id], onDelete: Cascade)
+  assets        Asset[]
+
+  @@unique([organizationId, brandId, modelNumber])
+  @@unique([organizationId, id])
+  @@index([specifications(ops: JsonbOps)], type: Gin, map: "idx_asset_models_specs")
+  @@map("asset_models")
+}
+
+model Asset {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String           @map("organization_id") @db.Uuid
+  siteId             String           @map("site_id") @db.Uuid
+  assetCategoryId    String           @map("asset_category_id") @db.Uuid
+  systemId           String?          @map("system_id") @db.Uuid
+  locationId         String           @map("location_id") @db.Uuid
+  brandId            String?          @map("brand_id") @db.Uuid
+  modelId            String?          @map("model_id") @db.Uuid
+  parentAssetId      String?          @map("parent_asset_id") @db.Uuid
+  assetCode          String           @map("asset_code") @db.VarChar(100)
+  name               String           @db.VarChar(200)
+  serialNumber       String?          @map("serial_number") @db.VarChar(150)
+  description        String?          @db.Text
+  manufacturerDate   DateTime?        @map("manufacturer_date") @db.Date
+  installationDate   DateTime?        @map("installation_date") @db.Date
+  commissioningDate  DateTime?        @map("commissioning_date") @db.Date
+  warrantyExpiryDate DateTime?        @map("warranty_expiry_date") @db.Date
+  expectedLifeYears  Decimal?         @map("expected_life_years") @db.Decimal(5, 2)
+  criticality        CriticalityLevel @default(medium)
+  status             AssetStatus      @default(in_service)
+  qrCodeValue        String?          @map("qr_code_value") @db.VarChar(200)
+  imageUri           String?          @map("image_uri") @db.Text
+  notes              String?          @db.Text
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site          Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  assetCategory AssetCategory @relation(fields: [assetCategoryId], references: [id], onDelete: Restrict)
+  system        System?       @relation(fields: [systemId], references: [id], onDelete: SetNull)
+  location      Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  brand         Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  model         AssetModel?   @relation(fields: [modelId], references: [id], onDelete: SetNull)
+
+  // Self-referencing hierarchical relationship
+  parent   Asset?  @relation("AssetHierarchy", fields: [parentAssetId], references: [id], onDelete: Restrict)
+  children Asset[] @relation("AssetHierarchy")
+
+  attributeValues       AssetAttributeValue[]
+  assetMeters           AssetMeter[]
+  assetMaintenancePlans AssetMaintenancePlan[]
+  workOrders            WorkOrder[]
+  inspections           Inspection[]
+  faultLogs             FaultLog[]
+  decisionRuns          DecisionRun[]
+
+  @@unique([organizationId, assetCode])
+  @@unique([organizationId, id])
+  @@index([organizationId, siteId], map: "idx_assets_site")
+  @@index([organizationId, locationId], map: "idx_assets_location")
+  @@index([organizationId, systemId], map: "idx_assets_system")
+  @@index([organizationId, assetCategoryId], map: "idx_assets_category")
+  @@index([organizationId, serialNumber], map: "idx_assets_serial")
+  @@map("assets")
+}
+
+// =============================================================================
+// DYNAMIC ATTRIBUTES
+// =============================================================================
+
+model AttributeDefinition {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String            @map("organization_id") @db.Uuid
+  code           String            @db.VarChar(100)
+  name           String            @db.VarChar(150)
+  dataType       AttributeDataType @map("data_type")
+  unitCode       String?           @map("unit_code") @db.VarChar(40)
+  description    String?           @db.Text
+  options        Json              @default("[]") @db.JsonB
+  isActive       Boolean           @default(true) @map("is_active")
+
+  // Relations
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  categoryAttributes CategoryAttribute[]
+  attributeValues    AssetAttributeValue[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("attribute_definitions")
+}
+
+model CategoryAttribute {
+  organizationId        String  @map("organization_id") @db.Uuid
+  assetCategoryId       String  @map("asset_category_id") @db.Uuid
+  attributeDefinitionId String  @map("attribute_definition_id") @db.Uuid
+  isRequired            Boolean @default(false) @map("is_required")
+  displayOrder          Int     @default(0) @map("display_order")
+  defaultValue          Json?   @map("default_value") @db.JsonB
+  validationRules       Json    @default("{}") @map("validation_rules") @db.JsonB
+
+  // Relations
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assetCategory       AssetCategory       @relation(fields: [assetCategoryId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, assetCategoryId, attributeDefinitionId])
+  @@map("category_attributes")
+}
+
+model AssetAttributeValue {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId        String    @map("organization_id") @db.Uuid
+  assetId               String    @map("asset_id") @db.Uuid
+  attributeDefinitionId String    @map("attribute_definition_id") @db.Uuid
+  valueText             String?   @map("value_text") @db.Text
+  valueNumber           Decimal?  @map("value_number") @db.Decimal(20, 6)
+  valueBoolean          Boolean?  @map("value_boolean")
+  valueDate             DateTime? @map("value_date") @db.Date
+  valueDatetime         DateTime? @map("value_datetime") @db.Timestamptz(6)
+  valueJson             Json?     @map("value_json") @db.JsonB
+  updatedBy             String?   @map("updated_by") @db.Uuid
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  organization        Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  asset               Asset               @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  attributeDefinition AttributeDefinition @relation(fields: [attributeDefinitionId], references: [id], onDelete: Restrict)
+  updatedByUser       User?               @relation("AttributeValueUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, assetId, attributeDefinitionId])
+  @@index([organizationId, attributeDefinitionId, valueNumber], map: "idx_asset_attr_number")
+  @@index([organizationId, attributeDefinitionId, valueText], map: "idx_asset_attr_text")
+  @@map("asset_attribute_values")
+}
+
+// =============================================================================
+// 5. UNITS, METERS AND OPERATIONAL READINGS
+// =============================================================================
+
+model UnitOfMeasurement {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  unitCode       String  @map("unit_code") @db.VarChar(40)
+  unitName       String  @map("unit_name") @db.VarChar(100)
+  dimension      String? @db.VarChar(80)
+
+  // Relations
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  meterDefinitions MeterDefinition[]
+
+  @@unique([organizationId, unitCode])
+  @@unique([organizationId, id])
+  @@map("units_of_measurement")
+}
+
+model MeterDefinition {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  code           String           @db.VarChar(80)
+  name           String           @db.VarChar(150)
+  unitId         String           @map("unit_id") @db.Uuid
+  readingType    MeterReadingType @default(cumulative) @map("reading_type")
+  description    String?          @db.Text
+
+  // Relations
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  unit             UnitOfMeasurement @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  assetMeters      AssetMeter[]
+  maintenancePlans MaintenancePlan[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("meter_definitions")
+}
+
+model AssetMeter {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  assetId           String    @map("asset_id") @db.Uuid
+  meterDefinitionId String    @map("meter_definition_id") @db.Uuid
+  meterCode         String?   @map("meter_code") @db.VarChar(100)
+  isActive          Boolean   @default(true) @map("is_active")
+  installedAt       DateTime? @map("installed_at") @db.Timestamptz(6)
+  removedAt         DateTime? @map("removed_at") @db.Timestamptz(6)
+
+  // Relations
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  asset           Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  meterDefinition MeterDefinition @relation(fields: [meterDefinitionId], references: [id], onDelete: Restrict)
+  meterReadings   MeterReading[]
+
+  @@unique([organizationId, id])
+  @@map("asset_meters")
+}
+
+model MeterReading {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  assetMeterId   String               @map("asset_meter_id") @db.Uuid
+  readingValue   Decimal              @map("reading_value") @db.Decimal(22, 6)
+  recordedAt     DateTime             @map("recorded_at") @db.Timestamptz(6)
+  source         ReadingSource        @default(manual)
+  qualityStatus  ReadingQualityStatus @default(valid) @map("quality_status")
+  notes          String?              @db.Text
+  recordedBy     String?              @map("recorded_by") @db.Uuid
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assetMeter     AssetMeter   @relation(fields: [assetMeterId], references: [id], onDelete: Cascade)
+  recordedByUser User?        @relation("MeterReadingRecordedBy", fields: [recordedBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, assetMeterId, recordedAt(sort: Desc)], map: "idx_meter_readings_meter_time")
+  @@map("meter_readings")
+}
+
+// =============================================================================
+// 6. MAINTENANCE CONFIGURATION, PLANS AND WORK ORDERS
+// =============================================================================
+
+model MaintenanceType {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String  @map("organization_id") @db.Uuid
+  code           String  @db.VarChar(50)
+  name           String  @db.VarChar(100)
+  description    String? @db.Text
+
+  // Relations
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  maintenancePlans MaintenancePlan[]
+  workOrders       WorkOrder[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("maintenance_types")
+}
+
+model MaintenanceTaskTemplate {
+  id                       String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId           String  @map("organization_id") @db.Uuid
+  assetCategoryId          String? @map("asset_category_id") @db.Uuid
+  code                     String  @db.VarChar(80)
+  title                    String  @db.VarChar(200)
+  description              String? @db.Text
+  estimatedDurationMinutes Int?    @map("estimated_duration_minutes")
+  safetyInstructions       String? @map("safety_instructions") @db.Text
+  requiredSkills           Json    @default("[]") @map("required_skills") @db.JsonB
+  isActive                 Boolean @default(true) @map("is_active")
+
+  // Relations
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assetCategory        AssetCategory?        @relation(fields: [assetCategoryId], references: [id], onDelete: SetNull)
+  maintenancePlanTasks MaintenancePlanTask[]
+  workOrderTasks       WorkOrderTask[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("maintenance_task_templates")
+}
+
+model MaintenancePlan {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String         @map("organization_id") @db.Uuid
+  code              String         @db.VarChar(80)
+  name              String         @db.VarChar(200)
+  description       String?        @db.Text
+  maintenanceTypeId String         @map("maintenance_type_id") @db.Uuid
+  recurrenceType    RecurrenceType @map("recurrence_type")
+  intervalValue     Decimal?       @map("interval_value") @db.Decimal(14, 3)
+  intervalUnit      String?        @map("interval_unit") @db.VarChar(30)
+  meterDefinitionId String?        @map("meter_definition_id") @db.Uuid
+  leadTimeDays      Int            @default(0) @map("lead_time_days")
+  priority          PriorityLevel  @default(medium)
+  isActive          Boolean        @default(true) @map("is_active")
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  maintenanceType       MaintenanceType        @relation(fields: [maintenanceTypeId], references: [id], onDelete: Restrict)
+  meterDefinition       MeterDefinition?       @relation(fields: [meterDefinitionId], references: [id], onDelete: SetNull)
+  maintenancePlanTasks  MaintenancePlanTask[]
+  assetMaintenancePlans AssetMaintenancePlan[]
+  workOrders            WorkOrder[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, id])
+  @@map("maintenance_plans")
+}
+
+model MaintenancePlanTask {
+  organizationId    String  @map("organization_id") @db.Uuid
+  maintenancePlanId String  @map("maintenance_plan_id") @db.Uuid
+  taskTemplateId    String  @map("task_template_id") @db.Uuid
+  sequenceNo        Int     @default(1) @map("sequence_no")
+  isMandatory       Boolean @default(true) @map("is_mandatory")
+
+  // Relations
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  maintenancePlan MaintenancePlan         @relation(fields: [maintenancePlanId], references: [id], onDelete: Cascade)
+  taskTemplate    MaintenanceTaskTemplate @relation(fields: [taskTemplateId], references: [id], onDelete: Restrict)
+
+  @@id([organizationId, maintenancePlanId, taskTemplateId])
+  @@map("maintenance_plan_tasks")
+}
+
+model AssetMaintenancePlan {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  assetId           String    @map("asset_id") @db.Uuid
+  maintenancePlanId String    @map("maintenance_plan_id") @db.Uuid
+  startDate         DateTime  @map("start_date") @db.Date
+  endDate           DateTime? @map("end_date") @db.Date
+  nextDueAt         DateTime? @map("next_due_at") @db.Timestamptz(6)
+  lastCompletedAt   DateTime? @map("last_completed_at") @db.Timestamptz(6)
+  isActive          Boolean   @default(true) @map("is_active")
+
+  // Relations
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  asset           Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  maintenancePlan MaintenancePlan @relation(fields: [maintenancePlanId], references: [id], onDelete: Restrict)
+
+  @@map("asset_maintenance_plans")
+}
+
+model WorkOrder {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String          @map("organization_id") @db.Uuid
+  workOrderNumber   String          @map("work_order_number") @db.VarChar(80)
+  siteId            String          @map("site_id") @db.Uuid
+  assetId           String?         @map("asset_id") @db.Uuid
+  locationId        String?         @map("location_id") @db.Uuid
+  maintenancePlanId String?         @map("maintenance_plan_id") @db.Uuid
+  maintenanceTypeId String          @map("maintenance_type_id") @db.Uuid
+  title             String          @db.VarChar(250)
+  description       String?         @db.Text
+  priority          PriorityLevel   @default(medium)
+  status            WorkOrderStatus @default(draft)
+  requestedBy       String?         @map("requested_by") @db.Uuid
+  assignedTo        String?         @map("assigned_to") @db.Uuid
+  approvedBy        String?         @map("approved_by") @db.Uuid
+  scheduledStartAt  DateTime?       @map("scheduled_start_at") @db.Timestamptz(6)
+  scheduledEndAt    DateTime?       @map("scheduled_end_at") @db.Timestamptz(6)
+  actualStartAt     DateTime?       @map("actual_start_at") @db.Timestamptz(6)
+  actualEndAt       DateTime?       @map("actual_end_at") @db.Timestamptz(6)
+  completionNotes   String?         @map("completion_notes") @db.Text
+  estimatedCost     Decimal?        @map("estimated_cost") @db.Decimal(16, 2)
+  actualCost        Decimal?        @map("actual_cost") @db.Decimal(16, 2)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site            Site             @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  asset           Asset?           @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  location        Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  maintenancePlan MaintenancePlan? @relation(fields: [maintenancePlanId], references: [id], onDelete: SetNull)
+  maintenanceType MaintenanceType  @relation(fields: [maintenanceTypeId], references: [id], onDelete: Restrict)
+  requestedByUser User?            @relation("WorkOrderRequestedBy", fields: [requestedBy], references: [id], onDelete: SetNull)
+  assignedToUser  User?            @relation("WorkOrderAssignedTo", fields: [assignedTo], references: [id], onDelete: SetNull)
+  approvedByUser  User?            @relation("WorkOrderApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  tasks         WorkOrderTask[]
+  laborRecords  WorkOrderLabor[]
+  parts         WorkOrderPart[]
+  statusHistory WorkOrderStatusHistory[]
+  inspections   Inspection[]
+  faultLogs     FaultLog[]
+  decisionRuns  DecisionRun[]
+
+  @@unique([organizationId, workOrderNumber])
+  @@unique([organizationId, id])
+  @@index([organizationId, status, scheduledStartAt], map: "idx_work_orders_status_due")
+  @@index([organizationId, assetId, createdAt(sort: Desc)], map: "idx_work_orders_asset_created")
+  @@index([organizationId, assignedTo, status], map: "idx_work_orders_assignee")
+  @@map("work_orders")
+}
+
+model WorkOrderTask {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String              @map("organization_id") @db.Uuid
+  workOrderId     String              @map("work_order_id") @db.Uuid
+  taskTemplateId  String?             @map("task_template_id") @db.Uuid
+  title           String              @db.VarChar(200)
+  instructions    String?             @db.Text
+  sequenceNo      Int                 @default(1) @map("sequence_no")
+  status          WorkOrderTaskStatus @default(pending)
+  completedBy     String?             @map("completed_by") @db.Uuid
+  completedAt     DateTime?           @map("completed_at") @db.Timestamptz(6)
+  completionNotes String?             @map("completion_notes") @db.Text
+
+  // Relations
+  organization    Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrder       WorkOrder                @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  taskTemplate    MaintenanceTaskTemplate? @relation(fields: [taskTemplateId], references: [id], onDelete: SetNull)
+  completedByUser User?                    @relation("WorkOrderTaskCompletedBy", fields: [completedBy], references: [id], onDelete: SetNull)
+
+  @@map("work_order_tasks")
+}
+
+model WorkOrderLabor {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  workOrderId    String   @map("work_order_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  technicianName String?  @map("technician_name") @db.VarChar(180)
+  hoursWorked    Decimal  @default(0) @map("hours_worked") @db.Decimal(10, 2)
+  hourlyCost     Decimal? @map("hourly_cost") @db.Decimal(14, 2)
+  notes          String?  @db.Text
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrder    WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  user         User?        @relation("WorkOrderLaborUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("work_order_labor")
+}
+
+model WorkOrderPart {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  workOrderId    String   @map("work_order_id") @db.Uuid
+  partCode       String?  @map("part_code") @db.VarChar(100)
+  description    String   @db.Text
+  quantity       Decimal  @db.Decimal(14, 3)
+  unitCost       Decimal? @map("unit_cost") @db.Decimal(14, 2)
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrder    WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@map("work_order_parts")
+}
+
+model WorkOrderStatusHistory {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  workOrderId    String           @map("work_order_id") @db.Uuid
+  oldStatus      WorkOrderStatus? @map("old_status")
+  newStatus      WorkOrderStatus  @map("new_status")
+  changedBy      String?          @map("changed_by") @db.Uuid
+  changedAt      DateTime         @default(now()) @map("changed_at") @db.Timestamptz(6)
+  comment        String?          @db.Text
+
+  // Relations
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workOrder     WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  changedByUser User?        @relation("WorkOrderStatusChangedBy", fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@map("work_order_status_history")
+}
+
+// =============================================================================
+// 7. INSPECTIONS AND CHECKLISTS
+// =============================================================================
+
+model ChecklistTemplate {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String  @map("organization_id") @db.Uuid
+  assetCategoryId String? @map("asset_category_id") @db.Uuid
+  code            String  @db.VarChar(80)
+  name            String  @db.VarChar(200)
+  description     String? @db.Text
+  version         Int     @default(1)
+  isActive        Boolean @default(true) @map("is_active")
+
+  // Relations
+  organization  Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assetCategory AssetCategory?  @relation(fields: [assetCategoryId], references: [id], onDelete: SetNull)
+  items         ChecklistItem[]
+  inspections   Inspection[]
+
+  @@unique([organizationId, code, version])
+  @@unique([organizationId, id])
+  @@map("checklist_templates")
+}
+
+model ChecklistItem {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String                @map("organization_id") @db.Uuid
+  checklistTemplateId String                @map("checklist_template_id") @db.Uuid
+  itemCode            String?               @map("item_code") @db.VarChar(80)
+  question            String                @db.Text
+  responseType        ChecklistResponseType @map("response_type")
+  isRequired          Boolean               @default(true) @map("is_required")
+  expectedValue       Json?                 @map("expected_value") @db.JsonB
+  options             Json                  @default("[]") @db.JsonB
+  minValue            Decimal?              @map("min_value") @db.Decimal(20, 6)
+  maxValue            Decimal?              @map("max_value") @db.Decimal(20, 6)
+  unitCode            String?               @map("unit_code") @db.VarChar(40)
+  sequenceNo          Int                   @default(1) @map("sequence_no")
+
+  // Relations
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checklistTemplate ChecklistTemplate    @relation(fields: [checklistTemplateId], references: [id], onDelete: Cascade)
+  responses         InspectionResponse[]
+
+  @@map("checklist_items")
+}
+
+model Inspection {
+  id                  String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String                   @map("organization_id") @db.Uuid
+  inspectionNumber    String                   @map("inspection_number") @db.VarChar(80)
+  checklistTemplateId String                   @map("checklist_template_id") @db.Uuid
+  assetId             String?                  @map("asset_id") @db.Uuid
+  locationId          String?                  @map("location_id") @db.Uuid
+  workOrderId         String?                  @map("work_order_id") @db.Uuid
+  status              InspectionStatus         @default(draft)
+  scheduledAt         DateTime?                @map("scheduled_at") @db.Timestamptz(6)
+  startedAt           DateTime?                @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime?                @map("completed_at") @db.Timestamptz(6)
+  inspectorId         String?                  @map("inspector_id") @db.Uuid
+  overallResult       InspectionOverallResult? @map("overall_result")
+  notes               String?                  @db.Text
+
+  // Relations
+  organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  checklistTemplate ChecklistTemplate    @relation(fields: [checklistTemplateId], references: [id], onDelete: Restrict)
+  asset             Asset?               @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  location          Location?            @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  workOrder         WorkOrder?           @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  inspector         User?                @relation("InspectionInspector", fields: [inspectorId], references: [id], onDelete: SetNull)
+  responses         InspectionResponse[]
+
+  @@unique([organizationId, inspectionNumber])
+  @@unique([organizationId, id])
+  @@index([organizationId, assetId, completedAt(sort: Desc)], map: "idx_inspections_asset_time")
+  @@map("inspections")
+}
+
+model InspectionResponse {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String                  @map("organization_id") @db.Uuid
+  inspectionId    String                  @map("inspection_id") @db.Uuid
+  checklistItemId String                  @map("checklist_item_id") @db.Uuid
+  responseText    String?                 @map("response_text") @db.Text
+  responseNumber  Decimal?                @map("response_number") @db.Decimal(20, 6)
+  responseBoolean Boolean?                @map("response_boolean")
+  responseDate    DateTime?               @map("response_date") @db.Date
+  responseJson    Json?                   @map("response_json") @db.JsonB
+  resultStatus    InspectionResultStatus? @map("result_status")
+  notes           String?                 @db.Text
+  evidenceUri     String?                 @map("evidence_uri") @db.Text
+  respondedBy     String?                 @map("responded_by") @db.Uuid
+  respondedAt     DateTime                @default(now()) @map("responded_at") @db.Timestamptz(6)
+
+  // Relations
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inspection      Inspection    @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  checklistItem   ChecklistItem @relation(fields: [checklistItemId], references: [id], onDelete: Restrict)
+  respondedByUser User?         @relation("InspectionResponseBy", fields: [respondedBy], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, inspectionId, checklistItemId])
+  @@map("inspection_responses")
+}
+
+// =============================================================================
+// 8. FAULTS, INCIDENTS AND CORRECTIVE ACTION
+// =============================================================================
+
+model FaultLog {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String           @map("organization_id") @db.Uuid
+  faultNumber        String           @map("fault_number") @db.VarChar(80)
+  assetId            String           @map("asset_id") @db.Uuid
+  reportedBy         String?          @map("reported_by") @db.Uuid
+  detectedAt         DateTime         @default(now()) @map("detected_at") @db.Timestamptz(6)
+  resolvedAt         DateTime?        @map("resolved_at") @db.Timestamptz(6)
+  severity           CriticalityLevel @default(medium)
+  status             FaultStatus      @default(open)
+  faultCode          String?          @map("fault_code") @db.VarChar(100)
+  symptom            String           @db.Text
+  suspectedCause     String?          @map("suspected_cause") @db.Text
+  rootCause          String?          @map("root_cause") @db.Text
+  correctiveAction   String?          @map("corrective_action") @db.Text
+  downtimeMinutes    Int?             @map("downtime_minutes")
+  relatedWorkOrderId String?          @map("related_work_order_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  asset            Asset        @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  reportedByUser   User?        @relation("FaultReportedBy", fields: [reportedBy], references: [id], onDelete: SetNull)
+  relatedWorkOrder WorkOrder?   @relation(fields: [relatedWorkOrderId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, faultNumber])
+  @@unique([organizationId, id])
+  @@index([organizationId, assetId, detectedAt(sort: Desc)], map: "idx_faults_asset_detected")
+  @@map("fault_logs")
+}
+
+// =============================================================================
+// 9. ANP / DECISION SUPPORT CONFIGURATION
+// =============================================================================
+
+model DecisionModel {
+  id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String              @map("organization_id") @db.Uuid
+  code            String              @db.VarChar(80)
+  name            String              @db.VarChar(200)
+  modelMethod     DecisionModelMethod @default(ANP) @map("model_method")
+  systemTypeId    String?             @map("system_type_id") @db.Uuid
+  assetCategoryId String?             @map("asset_category_id") @db.Uuid
+  version         Int                 @default(1)
+  configuration   Json                @default("{}") @db.JsonB
+  status          DecisionModelStatus @default(draft)
+  effectiveFrom   DateTime?           @map("effective_from") @db.Date
+  effectiveTo     DateTime?           @map("effective_to") @db.Date
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  systemType    SystemType?           @relation(fields: [systemTypeId], references: [id], onDelete: SetNull)
+  assetCategory AssetCategory?        @relation(fields: [assetCategoryId], references: [id], onDelete: SetNull)
+  criteria      DecisionCriterion[]
+  alternatives  DecisionAlternative[]
+  runs          DecisionRun[]
+
+  @@unique([organizationId, code, version])
+  @@unique([organizationId, id])
+  @@map("decision_models")
+}
+
+model DecisionCriterion {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String        @map("organization_id") @db.Uuid
+  decisionModelId   String        @map("decision_model_id") @db.Uuid
+  parentCriterionId String?       @map("parent_criterion_id") @db.Uuid
+  code              String        @db.VarChar(80)
+  name              String        @db.VarChar(160)
+  description       String?       @db.Text
+  criterionType     CriterionType @default(benefit) @map("criterion_type")
+  weight            Decimal?      @db.Decimal(12, 8)
+  sequenceNo        Int           @default(1) @map("sequence_no")
+
+  // Relations
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  decisionModel DecisionModel @relation(fields: [decisionModelId], references: [id], onDelete: Cascade)
+
+  // Self-referencing hierarchical relationship
+  parent   DecisionCriterion?  @relation("DecisionCriterionHierarchy", fields: [parentCriterionId], references: [id], onDelete: Restrict)
+  children DecisionCriterion[] @relation("DecisionCriterionHierarchy")
+
+  @@map("decision_criteria")
+}
+
+model DecisionAlternative {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String  @map("organization_id") @db.Uuid
+  decisionModelId String  @map("decision_model_id") @db.Uuid
+  code            String  @db.VarChar(80)
+  name            String  @db.VarChar(160)
+  description     String? @db.Text
+
+  // Relations
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  decisionModel DecisionModel @relation(fields: [decisionModelId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, decisionModelId, code])
+  @@unique([organizationId, id])
+  @@map("decision_alternatives")
+}
+
+model DecisionRun {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  decisionModelId   String   @map("decision_model_id") @db.Uuid
+  assetId           String?  @map("asset_id") @db.Uuid
+  workOrderId       String?  @map("work_order_id") @db.Uuid
+  runAt             DateTime @default(now()) @map("run_at") @db.Timestamptz(6)
+  inputSnapshot     Json     @default("{}") @map("input_snapshot") @db.JsonB
+  resultSnapshot    Json     @default("{}") @map("result_snapshot") @db.JsonB
+  recommendedAction String?  @map("recommended_action") @db.Text
+  confidenceScore   Decimal? @map("confidence_score") @db.Decimal(8, 6)
+  executedBy        String?  @map("executed_by") @db.Uuid
+
+  // Relations
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  decisionModel  DecisionModel @relation(fields: [decisionModelId], references: [id], onDelete: Restrict)
+  asset          Asset?        @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  workOrder      WorkOrder?    @relation(fields: [workOrderId], references: [id], onDelete: SetNull)
+  executedByUser User?         @relation("DecisionRunExecutedBy", fields: [executedBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, assetId, runAt(sort: Desc)], map: "idx_decision_runs_asset_time")
+  @@map("decision_runs")
+}
+
+// =============================================================================
+// 10. NOTIFICATIONS, ATTACHMENTS AND AUDIT
+// =============================================================================
+
+model Attachment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  fileName       String   @map("file_name") @db.VarChar(255)
+  storageUri     String   @map("storage_uri") @db.Text
+  mimeType       String?  @map("mime_type") @db.VarChar(150)
+  fileSizeBytes  BigInt?  @map("file_size_bytes")
+  uploadedBy     String?  @map("uploaded_by") @db.Uuid
+  uploadedAt     DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  // Relations
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedByUser    User?              @relation("AttachmentUploadedBy", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  entityAttachments EntityAttachment[]
+
+  @@map("attachments")
+}
+
+model EntityAttachment {
+  organizationId String @map("organization_id") @db.Uuid
+  attachmentId   String @map("attachment_id") @db.Uuid
+  entityType     String @map("entity_type") @db.VarChar(50)
+  entityId       String @map("entity_id") @db.Uuid
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attachment   Attachment   @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, attachmentId, entityType, entityId])
+  @@map("entity_attachments")
+}
+
+model Notification {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  notificationType String    @map("notification_type") @db.VarChar(80)
+  title            String    @db.VarChar(200)
+  message          String    @db.Text
+  entityType       String?   @map("entity_type") @db.VarChar(50)
+  entityId         String?   @map("entity_id") @db.Uuid
+  readAt           DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId, createdAt(sort: Desc)], map: "idx_notifications_user_unread")
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             BigInt   @id @default(autoincrement())
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  action         String   @db.VarChar(80)
+  entityType     String   @map("entity_type") @db.VarChar(80)
+  entityId       String?  @map("entity_id") @db.Uuid
+  oldValues      Json?    @map("old_values") @db.JsonB
+  newValues      Json?    @map("new_values") @db.JsonB
+  ipAddress      String?  @map("ip_address") @db.Inet
+  userAgent      String?  @map("user_agent") @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, entityType, entityId, createdAt(sort: Desc)], map: "idx_audit_entity_time")
+  @@map("audit_logs")
+}

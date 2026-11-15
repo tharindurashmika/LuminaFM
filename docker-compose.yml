@@ -1,0 +1,109 @@
+name: luminafm-cmms
+
+services:
+  # ===========================================================================
+  # 1. PostgreSQL 16 Multi-Tenant Relational Database
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: luminafm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-luminafm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luminafm_secret_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-luminafm_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - luminafm_net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-luminafm} -d $${POSTGRES_DB:-luminafm_db}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ===========================================================================
+  # 2. LuminaFM Node.js / Express / Prisma Core API & ANP Engine
+  # ===========================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: luminafm-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-luminafm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-luminafm_secret_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-luminafm_db}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-luminafm}:${POSTGRES_PASSWORD:-luminafm_secret_2026}@postgres:5432/${POSTGRES_DB:-luminafm_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-lumina-fm-super-secret-production-key-change-in-prod}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
+      RUN_SEED: ${RUN_SEED:-true}
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - luminafm_net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+
+  # ===========================================================================
+  # 3. LuminaFM Vite / React Frontend (Served by Nginx)
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    container_name: luminafm-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    networks:
+      - luminafm_net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  luminafm_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  uploads_data:
+
